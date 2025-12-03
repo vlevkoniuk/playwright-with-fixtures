@@ -188,25 +188,24 @@ jobs:
           path: allure-report-single-file/
           retention-days: 30
 
-      - name: Download blob reports for JUnit
+      - name: Download blob reports for summary
         uses: actions/download-artifact@v4
         with:
           pattern: blob-report-*
           path: all-blob-reports
           merge-multiple: true
 
-      - name: Merge into JUnit Report
-        run: npx playwright merge-reports --reporter junit ./all-blob-reports
+      - name: Merge blob reports into JSON
+        run: npx playwright merge-reports --reporter json ./all-blob-reports > test-results.json
 
-      - name: Publish Test Results
-        uses: EnricoMi/publish-unit-test-result-action@v2
+      - name: Publish Playwright Test Summary
+        uses: daun/playwright-report-summary@v3
         if: always()
         with:
-          files: |
-            results.xml
-          check_name: 'Test Results'
-          comment_title: 'Test Results'
-          compare_to_earlier_commit: true
+          report-file: test-results.json
+          report-tag: 'Test Results Summary'
+          job-summary: true
+          comment-on-pr: true
 
       - name: Setup Pages
         if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')

@@ -1,0 +1,10 @@
+{
+    "uiConfig": {
+        "jiraBaseUrl": "https://levkoniuk.atlassian.net/",
+        "atlassianBaseUrl": "https://www.atlassian.com/",
+        "automationExerciseBaseUrl": "https://automationexercise.com/"
+    },
+    "apiConfig": {
+        "jiraApiUrl": "https://levkoniuk.atlassian.net/rest/api/2/"
+    }
+}

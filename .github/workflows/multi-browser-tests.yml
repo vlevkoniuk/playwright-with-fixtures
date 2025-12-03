@@ -1,0 +1,68 @@
+name: Multi-Browser Tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'playwright.config.ts'
+
+env:
+  NODE_VERSION: '24.x'
+  AUTOMATION_EXERCISE_EMAIL: ${{ secrets.AUTOMATION_EXERCISE_EMAIL }}
+  AUTOMATION_EXERCISE_PASSWORD: ${{ secrets.AUTOMATION_EXERCISE_PASSWORD }}
+  JIRA_LOGIN: ${{ secrets.JIRA_LOGIN }}
+  JIRA_PASSWORD: ${{ secrets.JIRA_PASSWORD }}
+
+jobs:
+  test:
+    name: Test on ${{ matrix.browser }} - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        browser: [chromium, firefox, webkit]
+        exclude:
+          # WebKit on Linux has some known issues
+          - os: ubuntu-latest
+            browser: webkit
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Run tests on ${{ matrix.browser }}
+        run: npx playwright test --project=${{ matrix.browser }}
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.browser }}-${{ matrix.os }}
+          path: test-results/
+          retention-days: 30
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.browser }}-${{ matrix.os }}
+          path: playwright-report/
+          retention-days: 30

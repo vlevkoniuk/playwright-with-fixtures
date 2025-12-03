@@ -15,7 +15,7 @@ updates:
       prefix: "chore(deps):"
       include: "scope"
     reviewers:
-      - "your-github-username"  # Replace with actual username
+      - "vlevkoniuk"  # Replace with actual username
 
   # Enable version updates for GitHub Actions
   - package-ecosystem: "github-actions"

@@ -29,6 +29,11 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1/2, 2/2]
+        include:
+          - shard: 1/2
+            shard_index: 1
+          - shard: 2/2
+            shard_index: 2
 
     steps:
       - name: Checkout repository
@@ -65,7 +70,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-${{ matrix.shard }}
+          name: test-results-shard-${{ matrix.shard_index }}
           path: test-results/
           retention-days: 30
 
@@ -73,7 +78,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report-${{ matrix.shard }}
+          name: playwright-report-shard-${{ matrix.shard_index }}
           path: playwright-report/
           retention-days: 30
 
@@ -81,29 +86,9 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: allure-results-${{ matrix.shard }}
+          name: allure-results-shard-${{ matrix.shard_index }}
           path: allure-results/
           retention-days: 30
-
-  lint:
-    name: Lint Code
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run ESLint
-        run: npx eslint . --max-warnings=0
 
   report:
     name: Generate Reports

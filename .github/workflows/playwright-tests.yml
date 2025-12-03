@@ -106,7 +106,7 @@ jobs:
         run: npm ci
 
       - name: Download blob reports
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           pattern: blob-report-*
           path: all-blob-reports
@@ -143,7 +143,7 @@ jobs:
         run: npm ci
 
       - name: Download all Allure results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           pattern: allure-results-*
           path: allure-results
@@ -176,7 +176,7 @@ jobs:
           retention-days: 30
 
       - name: Download blob reports for JUnit
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           pattern: blob-report-*
           path: all-blob-reports

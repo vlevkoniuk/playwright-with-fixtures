@@ -195,26 +195,33 @@ jobs:
           comment_title: 'Test Results'
           compare_to_earlier_commit: true
 
-      - name: Publish Allure Report to GitHub Pages
+      - name: Setup Pages
         if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        uses: peaceiris/actions-gh-pages@v4
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact to Pages
+        if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
-          publish_dir: allure-report
-          destination_dir: allure-report/${{ github.run_number }}
-          keep_files: true
+          path: allure-report
+
+      - name: Deploy to GitHub Pages
+        if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        id: deployment
+        uses: actions/deploy-pages@v4
 
       - name: Add Allure report link to summary
         if: always()
         run: |
           echo "## Test Reports" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Allure Report" >> $GITHUB_STEP_SUMMARY
-          echo "📊 [View Allure Report](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure-report/${{ github.run_number }}/)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.ref }}" == "refs/heads/master" ]; then
+            echo "### Allure Report" >> $GITHUB_STEP_SUMMARY
+            echo "📊 [View Allure Report](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
           echo "### Playwright Report" >> $GITHUB_STEP_SUMMARY
-          echo "🎭 Download the 'playwright-report-merged' artifact to view the report locally" >> $GITHUB_STEP_SUMMARY
+          echo "🎭 Download the 'playwright-html-report' artifact to view the report locally" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Test Results" >> $GITHUB_STEP_SUMMARY
           echo "✅ Check the 'Test Results' section below for detailed test results" >> $GITHUB_STEP_SUMMARY
@@ -224,14 +231,11 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs');
-            const allureUrl = `https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/allure-report/${{ github.run_number }}/`;
-
             const comment = `## 🎭 Playwright Test Results
 
             ### 📊 Reports
-            - [Allure Report](${allureUrl})
-            - Playwright Report: Download the \`playwright-report-merged\` artifact
+            - Playwright Report: Download the \`playwright-html-report\` artifact
+            - Allure Reports: Download artifacts for detailed analysis
 
             ### 📝 Summary
             - **Run Number:** ${{ github.run_number }}

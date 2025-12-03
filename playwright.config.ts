@@ -32,14 +32,19 @@ export default defineConfig({
     workers: process.env.CI ? 1 : 1,
     /* Reporter to use. See https://playwright.dev/docs/test-reporters */
     // reporter: [['html'], ['allure-playwright'], ['@reportportal/agent-js-playwright', rpConfig], ['json']],
-    reporter: [
-        ['list'],
-        ['allure-playwright'],
-        ['pwmochawesome', { charts: true, reportTitle: 'Automation Exercise Test Report', reportFilename: 'automation-exercise-report' }],
-        ['html', { open: 'never', outputFile: 'test-results/test-results.html' }],
-        ['json', { outputFile: 'test-results/test-results.json' }],
-        ['junit', { outputFile: 'test-results/junit-results.xml' }]
-    ],
+    reporter: process.env.CI
+        ? [
+            ['list'],
+            ['blob'],
+            ['allure-playwright']
+        ]
+        : [
+            ['list'],
+            ['allure-playwright'],
+            ['pwmochawesome', { charts: true, reportTitle: 'Automation Exercise Test Report', reportFilename: 'automation-exercise-report' }],
+            ['html', { open: 'never' }],
+            ['json', { outputFile: 'test-results/test-results.json' }]
+        ],
     // timeout: 45000,
     /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
     use: {

@@ -166,7 +166,6 @@ jobs:
         run: |
           npx allure generate allure-results -o allure-report --clean
           echo "Allure report generated successfully"
-          touch allure-report/.nojekyll
 
       - name: Generate Allure single file report
         run: |
@@ -207,20 +206,71 @@ jobs:
           job-summary: true
           comment-on-pr: true
 
-      - name: Setup Pages
+      - name: Prepare Allure report for Pages
         if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        uses: actions/configure-pages@v4
+        run: |
+          mkdir -p gh-pages/${{ github.run_number }}
+          cp -r allure-report/* gh-pages/${{ github.run_number }}/
 
-      - name: Upload artifact to Pages
-        if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: allure-report
+          # Create index.html that redirects to latest report
+          cat > gh-pages/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <title>Allure Reports</title>
+            <meta http-equiv="refresh" content="0; url=./${{ github.run_number }}/">
+            <style>
+              body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+              a { color: #0066cc; text-decoration: none; }
+            </style>
+          </head>
+          <body>
+            <h1>Allure Test Reports</h1>
+            <p>Redirecting to latest report: <a href="./${{ github.run_number }}/">Build #${{ github.run_number }}</a></p>
+          </body>
+          </html>
+          EOF
+
+          # Create builds index
+          cat > gh-pages/builds.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <title>All Builds - Allure Reports</title>
+            <style>
+              body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+              h1 { color: #333; }
+              ul { list-style: none; padding: 0; }
+              li { margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 5px; }
+              a { color: #0066cc; text-decoration: none; font-weight: bold; }
+              a:hover { text-decoration: underline; }
+              .latest { background: #e3f2fd; border: 2px solid #2196f3; }
+            </style>
+          </head>
+          <body>
+            <h1>📊 Allure Test Reports - All Builds</h1>
+            <p>Available reports by build number:</p>
+            <ul id="builds"></ul>
+            <script>
+              // This will be populated when reports are generated
+              const currentBuild = ${{ github.run_number }};
+              document.getElementById('builds').innerHTML =
+                '<li class="latest"><a href="./' + currentBuild + '/">Build #' + currentBuild + '</a> (Latest)</li>';
+            </script>
+          </body>
+          </html>
+          EOF
 
       - name: Deploy to GitHub Pages
         if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        id: deployment
-        uses: actions/deploy-pages@v4
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./gh-pages
+          keep_files: true
+          destination_dir: ./
 
       - name: Add Allure report link to summary
         if: always()
@@ -229,7 +279,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.ref }}" == "refs/heads/master" ]; then
             echo "### Allure Report" >> $GITHUB_STEP_SUMMARY
-            echo "📊 [View Allure Report](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/)" >> $GITHUB_STEP_SUMMARY
+            echo "📊 [View Latest Report (Build #${{ github.run_number }})](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ github.run_number }}/)" >> $GITHUB_STEP_SUMMARY
+            echo "📋 [View All Builds](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/builds.html)" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
           fi
           echo "### Playwright Report" >> $GITHUB_STEP_SUMMARY

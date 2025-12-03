@@ -13,10 +13,12 @@ on:
         default: ''
 
 permissions:
-  contents: read
+  contents: write
   checks: write
   pull-requests: write
   actions: read
+  pages: write
+  id-token: write
 
 env:
   NODE_VERSION: '24.x'
@@ -150,6 +152,8 @@ jobs:
       - name: Generate Allure report
         run: |
           npx allure generate allure-results -o allure-report --clean
+          echo "Allure report generated successfully"
+          touch allure-report/.nojekyll
 
       - name: Generate Allure single file report
         run: |
@@ -192,13 +196,14 @@ jobs:
           compare_to_earlier_commit: true
 
       - name: Publish Allure Report to GitHub Pages
-        if: always() && github.ref == 'refs/heads/main'
+        if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
           publish_dir: allure-report
           destination_dir: allure-report/${{ github.run_number }}
+          keep_files: true
 
       - name: Add Allure report link to summary
         if: always()

@@ -14,12 +14,20 @@ Main workflow that runs on every push and pull request.
 - ✅ Playwright browser installation (Chromium)
 - ✅ ESLint linting
 - ✅ Parallel test execution with sharding (2 shards)
+- ✅ Blob reporter for efficient sharding
+- ✅ Screenshots on test failure
+- ✅ Video recording (retained on failure)
+- ✅ Trace collection for debugging
+- ✅ Proper test failure handling (job fails when tests fail, but artifacts still upload)
 - ✅ Allure report generation (regular and single-file)
-- ✅ Playwright HTML report
+- ✅ Playwright HTML report (merged from shards, with embedded videos)
 - ✅ Test results publishing
-- ✅ GitHub Pages deployment for Allure reports
+- ✅ GitHub Pages deployment for Allure reports (even on test failure)
 - ✅ PR comments with report links
-- ✅ Artifacts upload (30-day retention)
+- ✅ Artifacts upload:
+  - Blob reports (1 day)
+  - Test results with screenshots/videos (30 days)
+  - Reports (30 days)
 
 #### Triggers:
 - Push to `main`, `master`, or `develop` branches
@@ -28,9 +36,10 @@ Main workflow that runs on every push and pull request.
 
 #### Jobs:
 1. **lint** - Runs ESLint with zero warnings tolerance
-2. **test** - Executes Playwright tests in parallel shards
-3. **report** - Merges results and generates reports
-4. **notify** - Sends notifications and updates summaries
+2. **test** - Executes Playwright tests in parallel shards (2 shards)
+3. **merge-reports** - Merges blob reports into unified HTML report
+4. **report** - Generates Allure reports and publishes test results
+5. **notify** - Sends notifications and updates summaries
 
 ---
 
@@ -51,25 +60,6 @@ Automated test runs on a schedule.
 #### Jobs:
 1. **smoke-tests** - Runs tests tagged with `@smoke`
 2. **regression-tests** - Runs tests tagged with `@regression` (after smoke tests)
-
----
-
-### 3. **Multi-Browser Tests** (`multi-browser-tests.yml`)
-
-Cross-browser and cross-platform testing.
-
-#### Features:
-- 🌐 Tests on Chromium, Firefox, and WebKit
-- 💻 Tests on Ubuntu, Windows, and macOS
-- ✅ Matrix strategy for parallel execution
-- ✅ Separate reports for each browser/OS combination
-
-#### Triggers:
-- Manual dispatch
-- Push to `main` or `master` when test files change
-
-#### Jobs:
-1. **test** - Runs tests on all browser/OS combinations
 
 ---
 
@@ -178,6 +168,12 @@ schedule:
 
 ## 🐛 Debugging Failed Workflows
 
+**Note**: When tests fail, the workflow is designed to:
+- Show the job as failed (red ❌) in the Actions UI
+- Still upload all artifacts for analysis
+- Generate and deploy reports to GitHub Pages
+- See [Test Failure Handling](../TEST-FAILURE-HANDLING.md) for details
+
 ### View Logs
 1. Go to `Actions` tab
 2. Click on the failed workflow run
@@ -187,9 +183,17 @@ schedule:
 ### Download Artifacts
 1. Scroll to the bottom of the workflow run page
 2. Download relevant artifacts:
-   - `test-results-*` - Test execution results
-   - `playwright-report-*` - HTML report
-   - `allure-report-*` - Allure report
+   - `blob-report-*` - Raw shard test data
+   - `test-results-*` - Screenshots, videos, and traces from failures
+   - `playwright-html-report` - Merged HTML report (videos embedded)
+   - `allure-report` - Full Allure report (with attachments)
+   - `allure-report-single-file` - Portable single-file report
+
+### View Reports Online
+- **Allure Report** (main/master branch): `https://<username>.github.io/<repo>/`
+- **Test Results**: Check workflow summary for inline results
+- **PR Comments**: Automated comments on pull requests with report links
+- **Screenshots & Videos**: Automatically included in all reports - see [SCREENSHOTS-AND-VIDEOS.md](../SCREENSHOTS-AND-VIDEOS.md)
 
 ### Re-run Failed Jobs
 1. Click `Re-run jobs` → `Re-run failed jobs`

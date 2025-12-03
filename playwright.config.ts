@@ -56,10 +56,16 @@ export default defineConfig({
 
         /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
         trace: 'retain-on-failure',
-        // this will work if the playwright is controlling context and page for you
-        // In our case when we use fixture that injects only browser instance and we are creating our own context and page it will not work
-        // In that case we should add video recording options during context creation
-        video: 'on'
+
+        /* Take screenshot on failure */
+        screenshot: 'only-on-failure',
+
+        /* Record video for all tests */
+        // Note: For custom fixtures creating their own context, video options must be set during context creation
+        video: {
+            mode: 'retain-on-failure',
+            size: { width: 1680, height: 900 }
+        }
     },
 
     /* Configure projects for major browsers */

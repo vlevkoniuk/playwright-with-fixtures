@@ -26,7 +26,8 @@ export const test = base.extend<AutomationExerciseFixture>({
         const context = await browser.newContext({
             storageState: storageState(workerId),
             recordVideo: {
-                dir: 'test-results/videos'
+                dir: 'test-results/videos',
+                size: { width: 1680, height: 900 }
             }
         });
         const page = await context.newPage();
@@ -44,7 +45,8 @@ export const test = base.extend<AutomationExerciseFixture>({
         const context = await browser.newContext({
             storageState: storageState(workerId),
             recordVideo: {
-                dir: 'test-results/videos'
+                dir: 'test-results/videos',
+                size: { width: 1680, height: 900 }
             }
         });
         const page = await context.newPage();

@@ -265,6 +265,7 @@ jobs:
 
       - name: Deploy to GitHub Pages
         if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        id: gh-pages-deploy
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -275,19 +276,35 @@ jobs:
       - name: Add Allure report link to summary
         if: always()
         run: |
-          echo "## Test Reports" >> $GITHUB_STEP_SUMMARY
+          echo "## 📊 Test Reports" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+
           if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.ref }}" == "refs/heads/master" ]; then
-            echo "### Allure Report" >> $GITHUB_STEP_SUMMARY
-            echo "📊 [View Latest Report (Build #${{ github.run_number }})](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ github.run_number }}/)" >> $GITHUB_STEP_SUMMARY
-            echo "📋 [View All Builds](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/builds.html)" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ steps.gh-pages-deploy.outcome }}" == "success" ]; then
+              echo "### 🌐 Allure Report (GitHub Pages)" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "📊 **[View Latest Report - Build #${{ github.run_number }}](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ github.run_number }}/)**" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "📋 [View All Builds](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/builds.html)" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "> **Note**: It may take 1-2 minutes for GitHub Pages to update. If you see a 404, wait a moment and refresh." >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "### ⚠️ Allure Report" >> $GITHUB_STEP_SUMMARY
+              echo "GitHub Pages deployment was skipped or failed. Download the artifact below instead." >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
           fi
-          echo "### Playwright Report" >> $GITHUB_STEP_SUMMARY
-          echo "🎭 Download the 'playwright-html-report' artifact to view the report locally" >> $GITHUB_STEP_SUMMARY
+
+          echo "### 📦 Downloadable Reports" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Test Results" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Check the 'Test Results' section below for detailed test results" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎭 **Playwright HTML Report**: Download the \`playwright-html-report\` artifact" >> $GITHUB_STEP_SUMMARY
+          echo "- 📊 **Allure Report**: Download the \`allure-report\` artifact" >> $GITHUB_STEP_SUMMARY
+          echo "- 📄 **Allure Single File**: Download the \`allure-report-single-file\` artifact" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### ✅ Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "Check the test results summary above for detailed pass/fail statistics" >> $GITHUB_STEP_SUMMARY
 
       - name: Comment PR with reports
         if: always() && github.event_name == 'pull_request'

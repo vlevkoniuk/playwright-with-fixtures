@@ -9,6 +9,10 @@ on:
       - 'tests/**'
       - 'playwright.config.ts'
 
+permissions:
+  contents: read
+  actions: read
+
 env:
   NODE_VERSION: '24.x'
   AUTOMATION_EXERCISE_EMAIL: ${{ secrets.AUTOMATION_EXERCISE_EMAIL }}

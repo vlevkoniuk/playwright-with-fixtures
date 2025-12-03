@@ -12,6 +12,12 @@ on:
         required: false
         default: ''
 
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+  actions: read
+
 env:
   NODE_VERSION: '24.x'
   AUTOMATION_EXERCISE_EMAIL: ${{ secrets.AUTOMATION_EXERCISE_EMAIL }}

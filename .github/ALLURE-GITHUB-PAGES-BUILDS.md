@@ -4,6 +4,17 @@
 
 Allure reports are now organized by build number on GitHub Pages, allowing you to access reports from any workflow run. Each build gets its own directory, and historical reports are preserved.
 
+## Prerequisites
+
+**Important**: GitHub Pages must be configured to deploy from the `gh-pages` branch:
+
+1. Go to `Repository Settings` → `Pages`
+2. Under "Source", select `Deploy from a branch`
+3. Under "Branch", select `gh-pages` and `/ (root)`
+4. Click Save
+
+**Note**: This is different from the "GitHub Actions" source used previously. The `peaceiris/actions-gh-pages` action creates and manages the `gh-pages` branch automatically.
+
 ---
 
 ## URL Structure
@@ -348,24 +359,57 @@ Add a cleanup step to your workflow:
 
 ## Troubleshooting
 
+### Link Not Appearing in Workflow Summary
+
+**Symptom**: The Allure report link is not shown in the workflow summary after the build completes.
+
+**Check 1**: Verify you're on main/master branch
+```bash
+# Links only appear for main/master branches
+git branch
+```
+
+**Check 2**: Check "Add Allure report link to summary" step
+- Open the workflow run
+- Check the "Add Allure report link to summary" step
+- Verify it ran and didn't skip
+
+**Check 3**: Check deploy step outcome
+```yaml
+# The workflow checks if deployment succeeded
+if [ "${{ steps.gh-pages-deploy.outcome }}" == "success" ]
+```
+
+**Solution**: If deployment was skipped or failed, the link won't appear. Check the "Deploy to GitHub Pages" step for errors.
+
 ### Reports Not Appearing
 
 **Check 1**: Verify GitHub Pages is enabled
 ```
-Repository Settings → Pages → Source: GitHub Actions
+Repository Settings → Pages → Source: Deploy from a branch
+Branch: gh-pages / (root)
 ```
+
+**Important**: Change Pages source from "GitHub Actions" to "Deploy from a branch" and select `gh-pages` branch. This is required for the `peaceiris/actions-gh-pages` action.
 
 **Check 2**: Verify workflow completed
 - Check "Deploy to GitHub Pages" step succeeded
-- Look for "Published to GitHub Pages" message
+- Look for "peaceiris/actions-gh-pages@v4" success message
 
 **Check 3**: Wait for propagation
 - GitHub Pages can take 1-2 minutes to update
 - Try accessing after a short delay
+- You'll see a note in the summary: "It may take 1-2 minutes for GitHub Pages to update"
+
+**Check 4**: Verify gh-pages branch exists
+```bash
+git ls-remote --heads origin
+# Should show refs/heads/gh-pages
+```
 
 ### 404 Errors
 
-**Cause**: Build directory doesn't exist
+**Cause 1**: Build directory doesn't exist or Pages not yet updated
 
 **Solution**: Verify the build number exists in gh-pages branch:
 ```bash

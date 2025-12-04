@@ -1,0 +1,375 @@
+stages:
+    - test
+    - report
+    - deploy
+    - notify
+
+variables:
+    NODE_VERSION: '24.x'
+    FF_USE_FASTZIP: 'true'
+    ARTIFACT_COMPRESSION_LEVEL: 'fast'
+    CACHE_COMPRESSION_LEVEL: 'fast'
+
+# Cache node_modules between jobs
+.node_cache:
+    cache:
+        key:
+            files:
+                - package-lock.json
+        paths:
+            - node_modules/
+
+# Test job with parallel sharding
+test:
+    stage: test
+    image: mcr.microsoft.com/playwright:v1.48.2-noble
+    extends: .node_cache
+    parallel:
+        matrix:
+            - SHARD_INDEX: [1, 2]
+              SHARD_TOTAL: [2]
+    script:
+        - echo "Checking variables..."
+        - |
+            if [ -z "$AUTOMATION_EXERCISE_EMAIL" ]; then
+              echo "Error: AUTOMATION_EXERCISE_EMAIL is not set"
+              exit 1
+            fi
+        - |
+            if [ -z "$AUTOMATION_EXERCISE_PASSWORD" ]; then
+              echo "Error: AUTOMATION_EXERCISE_PASSWORD is not set"
+              exit 1
+            fi
+        - echo "Running tests on shard $SHARD_INDEX/$SHARD_TOTAL"
+        - npm ci
+        - npx playwright install --with-deps chromium
+        - npm run lint
+        - npx playwright test --shard=$SHARD_INDEX/$SHARD_TOTAL || export TEST_FAILED=1
+        - |
+            if [ "$TEST_FAILED" = "1" ]; then
+              echo "Tests failed on shard $SHARD_INDEX/$SHARD_TOTAL"
+              exit 1
+            fi
+    
+    artifacts:
+        when: always
+        paths:
+            - blob-report/
+            - allure-results/
+            - test-results/
+            - mochawesome-report/
+        expire_in: 30 days
+        name: 'test-results-shard-$SHARD_INDEX'
+    # variables:
+    #     AUTOMATION_EXERCISE_EMAIL: $AUTOMATION_EXERCISE_EMAIL
+    #     AUTOMATION_EXERCISE_PASSWORD: $AUTOMATION_EXERCISE_PASSWORD
+    #     JIRA_LOGIN: $JIRA_LOGIN
+    #     JIRA_PASSWORD: $JIRA_PASSWORD
+    rules:
+        - if: '$CI_PIPELINE_SOURCE == "push"'
+        - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+        - if: '$CI_PIPELINE_SOURCE == "web"'
+    allow_failure: false
+
+# Generate reports job
+generate-reports:
+    stage: report
+    image: mcr.microsoft.com/playwright:v1.48.2-noble
+    extends: .node_cache
+    when: always
+    needs:
+        - job: test
+          artifacts: true
+    script:
+        - echo "Installing dependencies..."
+        - apt-get update && apt-get install -y default-jre
+        - npm ci
+
+        # Merge all blob reports and allure results
+        - echo "Merging test results from all shards..."
+        - mkdir -p all-blob-reports
+        - cp -r blob-report/* all-blob-reports/ 2>/dev/null || true
+
+        - mkdir -p merged-allure-results
+        - cp -r allure-results/* merged-allure-results/ 2>/dev/null || true
+
+        # Generate Allure report
+        - echo "Generating Allure report..."
+        - npx allure generate merged-allure-results -o allure-report --clean
+        - echo "Allure report generated successfully"
+
+        # Generate Allure single file report
+        - echo "Generating Allure single file report..."
+        - npx allure generate merged-allure-results --single-file --clean -o allure-report-single-file
+
+        # Merge blob reports into HTML
+        - echo "Generating Playwright HTML report..."
+        - npx playwright merge-reports --reporter html ./all-blob-reports
+
+        # Merge blob reports into JSON for summary
+        - echo "Generating Playwright JSON report..."
+        - npx playwright merge-reports --reporter json ./all-blob-reports > test-results.json
+
+        # Merge blob reports into XML for summary
+        - echo "Generating Playwright XML report..."
+        - npx playwright merge-reports --reporter junit ./all-blob-reports > test-results.xml
+
+        # Parse test results for summary
+        - |
+            echo "Parsing test results..."
+            TOTAL=$(cat test-results.json | grep -o '"expected"' | wc -l | tr -d ' ' || true)
+            PASSED=$(cat test-results.json | grep -o '"status":"passed"' | wc -l | tr -d ' ' || true)
+            FAILED=$(cat test-results.json | grep -o '"status":"failed"' | wc -l | tr -d ' ' || true)
+            SKIPPED=$(cat test-results.json | grep -o '"status":"skipped"' | wc -l | tr -d ' ' || true)
+
+            echo "TOTAL_TESTS=\"$TOTAL\"" > report.env
+            echo "PASSED_TESTS=\"$PASSED\"" >> report.env
+            echo "FAILED_TESTS=\"$FAILED\"" >> report.env
+            echo "SKIPPED_TESTS=\"$SKIPPED\"" >> report.env
+
+            echo "Generated report.env content:"
+            cat report.env
+
+    artifacts:
+        when: always
+        paths:
+            - allure-report/
+            - allure-report-single-file/
+            - playwright-report/
+            - mochawesome-report/
+            - test-results.json
+            - test-results.xml
+            - test-results/
+        expire_in: 30 days
+        reports:
+            junit: test-results.xml
+    rules:
+        - if: '$CI_PIPELINE_SOURCE == "push"'
+        - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+        - if: '$CI_PIPELINE_SOURCE == "web"'
+
+# Deploy to GitLab Pages with build history
+pages:
+    stage: deploy
+    image: alpine:latest
+    needs:
+        - job: generate-reports
+          artifacts: true
+    before_script:
+        - apk add --no-cache git
+    script:
+        - echo "Preparing Allure report for GitLab Pages with build history..."
+
+        # Clone existing pages if they exist (to preserve history)
+        - |
+            if git ls-remote --exit-code --heads origin gl-pages >/dev/null 2>&1; then
+              echo "Cloning existing gl-pages branch..."
+              git clone --depth 1 --branch gl-pages https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git gl-pages-repo || mkdir -p public
+              cp -r gl-pages-repo/* public/ 2>/dev/null || mkdir -p public
+            else
+              echo "No existing gl-pages branch found, starting fresh..."
+              mkdir -p public
+            fi
+
+        # Create build-specific directory
+        - echo "Creating build directory for pipeline ${CI_PIPELINE_IID}..."
+        - mkdir -p public/${CI_PIPELINE_IID}
+        - cp -r allure-report/* public/${CI_PIPELINE_IID}/
+
+        # Create index.html that redirects to latest report
+        - |
+            cat > public/index.html << EOF
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <title>Allure Reports</title>
+              <meta http-equiv="refresh" content="0; url=./${CI_PIPELINE_IID}/">
+              <style>
+                body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+                a { color: #0066cc; text-decoration: none; }
+              </style>
+            </head>
+            <body>
+              <h1>Allure Test Reports</h1>
+              <p>Redirecting to latest report: <a href="./${CI_PIPELINE_IID}/">Build #${CI_PIPELINE_IID}</a></p>
+            </body>
+            </html>
+            EOF
+
+        # Create builds index
+        - |
+            cat > public/builds.html << EOF
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <title>All Builds - Allure Reports</title>
+              <style>
+                body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+                h1 { color: #333; }
+                ul { list-style: none; padding: 0; }
+                li { margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 5px; }
+                a { color: #0066cc; text-decoration: none; font-weight: bold; }
+                a:hover { text-decoration: underline; }
+                .latest { background: #e3f2fd; border: 2px solid #2196f3; }
+              </style>
+            </head>
+            <body>
+              <h1>📊 Allure Test Reports - All Builds</h1>
+              <p>Available reports by build number:</p>
+              <ul id="builds"></ul>
+              <script>
+                // List all build directories
+                const currentBuild = ${CI_PIPELINE_IID};
+
+                // Get all numeric directories (builds)
+                fetch('.')
+                  .then(response => response.text())
+                  .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const links = Array.from(doc.querySelectorAll('a'))
+                      .map(a => a.getAttribute('href'))
+                      .filter(href => href && /^\d+\/$/.test(href))
+                      .map(href => parseInt(href.replace('/', '')))
+                      .sort((a, b) => b - a);
+
+                    if (links.length === 0) {
+                      // Fallback: just show current build
+                      document.getElementById('builds').innerHTML =
+                        '<li class="latest"><a href="./' + currentBuild + '/">Build #' + currentBuild + '</a> (Latest)</li>';
+                    } else {
+                      const html = links.map((build, index) =>
+                        '<li class="' + (index === 0 ? 'latest' : '') + '">' +
+                        '<a href="./' + build + '/">Build #' + build + '</a>' +
+                        (index === 0 ? ' (Latest)' : '') +
+                        '</li>'
+                      ).join('');
+                      document.getElementById('builds').innerHTML = html;
+                    }
+                  })
+                  .catch(() => {
+                    // Fallback on error
+                    document.getElementById('builds').innerHTML =
+                      '<li class="latest"><a href="./' + currentBuild + '/">Build #' + currentBuild + '</a> (Latest)</li>';
+                  });
+              </script>
+            </body>
+            </html>
+            EOF
+
+        - echo "GitLab Pages prepared successfully"
+        - echo "Report URL will be https://${CI_PROJECT_NAMESPACE}.gitlab.io/${CI_PROJECT_NAME}/${CI_PIPELINE_IID}/"
+
+    artifacts:
+        paths:
+            - public
+        expire_in: never
+
+    rules:
+        - if: '$CI_COMMIT_BRANCH == "main"'
+        - if: '$CI_COMMIT_BRANCH == "master"'
+        - if: '$CI_COMMIT_BRANCH == "develop"'
+
+# Add comment to Merge Request
+comment-mr:
+    stage: notify
+    image: alpine:latest
+    needs:
+        - job: generate-reports
+          artifacts: true
+        - job: pages
+          artifacts: false
+          optional: true
+    before_script:
+        - apk add --no-cache curl jq
+    script:
+        - |
+            if [ "$CI_PIPELINE_SOURCE" = "merge_request_event" ]; then
+              if [ -z "$GITLAB_TOKEN" ]; then echo "Error: GITLAB_TOKEN is not set"; exit 1; fi
+              echo "Adding comment to Merge Request..."
+
+              PAGES_URL="https://${CI_PROJECT_NAMESPACE}.gitlab.io/${CI_PROJECT_NAME}/${CI_PIPELINE_IID}/"
+
+              # Parse test results
+              TOTAL=$(cat test-results.json | grep -o '"expected"' | wc -l || echo "0")
+              PASSED=$(cat test-results.json | grep -o '"status":"passed"' | wc -l || echo "0")
+              FAILED=$(cat test-results.json | grep -o '"status":"failed"' | wc -l || echo "0")
+              SKIPPED=$(cat test-results.json | grep -o '"status":"skipped"' | wc -l || echo "0")
+
+              COMMENT_BODY=$(cat <<EOF
+            ## 🎭 Playwright Test Results
+
+            ### 📊 Test Summary
+            - **Total Tests:** $TOTAL
+            - **✅ Passed:** $PASSED
+            - **❌ Failed:** $FAILED
+            - **⏭️ Skipped:** $SKIPPED
+
+            ### 📊 Reports
+            - **Allure Report (GitLab Pages):** [View Report]($PAGES_URL)
+            - **Playwright HTML Report:** Download from pipeline artifacts
+            - **Allure Single File:** Download from pipeline artifacts
+
+            ### 📝 Details
+            - **Pipeline:** [#${CI_PIPELINE_IID}](${CI_PIPELINE_URL})
+            - **Commit:** ${CI_COMMIT_SHORT_SHA}
+            - **Branch:** ${CI_COMMIT_REF_NAME}
+            EOF
+              )
+
+              curl --request POST \
+                --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+                --header "Content-Type: application/json" \
+                --data "{\"body\": $(echo "$COMMENT_BODY" | jq -Rs .)}" \
+                "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests/${CI_MERGE_REQUEST_IID}/notes"
+            else
+              echo "Not a merge request, skipping comment"
+            fi
+    rules:
+        - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    allow_failure: true
+
+# Final notification with pipeline summary
+notify-summary:
+    stage: notify
+    image: alpine:latest
+    needs:
+        - job: test
+          artifacts: false
+        - job: generate-reports
+          artifacts: true
+    script:
+        - |
+            echo "========================================"
+            echo "🎯 Pipeline Summary"
+            echo "========================================"
+            echo "Repository: ${CI_PROJECT_PATH}"
+            echo "Branch: ${CI_COMMIT_REF_NAME}"
+            echo "Commit: ${CI_COMMIT_SHORT_SHA}"
+            echo "Triggered by: ${GITLAB_USER_NAME}"
+            echo "Pipeline: #${CI_PIPELINE_IID}"
+            echo ""
+            echo "## 📊 Test Results Summary"
+            echo ""
+            echo "- **Total Tests:** $TOTAL_TESTS"
+            echo "- **✅ Passed:** $PASSED_TESTS"
+            echo "- **❌ Failed:** $FAILED_TESTS"
+            echo "- **⏭️ Skipped:** $SKIPPED_TESTS"
+            echo ""
+            echo ""
+
+            if [ "$CI_COMMIT_BRANCH" = "main" ] || [ "$CI_COMMIT_BRANCH" = "master" ] || [ "$CI_COMMIT_BRANCH" = "develop" ]; then
+              echo "📊 Allure Report URL:"
+              echo "https://${CI_PROJECT_NAMESPACE}.gitlab.io/${CI_PROJECT_NAME}/${CI_PIPELINE_IID}/"
+              echo ""
+              echo "📋 All Builds:"
+              echo "https://${CI_PROJECT_NAMESPACE}.gitlab.io/${CI_PROJECT_NAME}/builds.html"
+            fi
+            echo "========================================"
+    rules:
+        - if: '$CI_PIPELINE_SOURCE == "push"'
+        - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+        - if: '$CI_PIPELINE_SOURCE == "web"'
+    allow_failure: true

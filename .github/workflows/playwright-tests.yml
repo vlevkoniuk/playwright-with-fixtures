@@ -207,7 +207,7 @@ jobs:
           comment-on-pr: true
 
       - name: Prepare Allure report for Pages
-        if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/develop')
         run: |
           mkdir -p gh-pages/${{ github.run_number }}
           cp -r allure-report/* gh-pages/${{ github.run_number }}/
@@ -264,7 +264,7 @@ jobs:
           EOF
 
       - name: Deploy to GitHub Pages
-        if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/develop')
         id: gh-pages-deploy
         uses: peaceiris/actions-gh-pages@v4
         with:
@@ -279,7 +279,7 @@ jobs:
           echo "## 📊 Test Reports" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.ref }}" == "refs/heads/master" ]; then
+          if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.ref }}" == "refs/heads/master" ] || [ "${{ github.ref }}" == "refs/heads/develop" ]; then
             if [ "${{ steps.gh-pages-deploy.outcome }}" == "success" ]; then
               echo "### 🌐 Allure Report (GitHub Pages)" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY

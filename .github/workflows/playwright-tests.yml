@@ -99,45 +99,45 @@ jobs:
         if: steps.tests.outcome == 'failure'
         run: exit 1
 
-  merge-reports:
-    name: Merge Playwright Reports
-    runs-on: ubuntu-latest
-    needs: [test]
-    if: ${{ !cancelled() }}
+  # merge-reports:
+  #   name: Merge Playwright Reports
+  #   runs-on: ubuntu-latest
+  #   needs: [test]
+  #   if: ${{ !cancelled() }}
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
 
-      - name: Setup Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+  #     - name: Setup Node.js ${{ env.NODE_VERSION }}
+  #       uses: actions/setup-node@v4
+  #       with:
+  #         node-version: ${{ env.NODE_VERSION }}
+  #         cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+  #     - name: Install dependencies
+  #       run: npm ci
 
-      - name: Download blob reports
-        uses: actions/download-artifact@v4
-        with:
-          pattern: blob-report-*
-          path: all-blob-reports
-          merge-multiple: true
+  #     - name: Download blob reports
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         pattern: blob-report-*
+  #         path: all-blob-reports
+  #         merge-multiple: true
 
-      - name: Merge into HTML Report
-        run: npx playwright merge-reports --reporter html ./all-blob-reports
+  #     - name: Merge into HTML Report
+  #       run: npx playwright merge-reports --reporter html ./all-blob-reports
 
-      - name: Upload HTML report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-html-report
-          path: playwright-report/
-          retention-days: 30
+  #     - name: Upload HTML report
+  #       if: always()
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: playwright-html-report
+  #         path: playwright-report/
+  #         retention-days: 30
 
   report:
-    name: Generate Allure Reports
+    name: Generate Test Reports
     runs-on: ubuntu-latest
     needs: [test]
     if: always()
@@ -166,7 +166,6 @@ jobs:
         run: |
           npx allure generate allure-results -o allure-report --clean
           echo "Allure report generated successfully"
-          touch allure-report/.nojekyll
 
       - name: Generate Allure single file report
         run: |
@@ -194,6 +193,19 @@ jobs:
           pattern: blob-report-*
           path: all-blob-reports
           merge-multiple: true
+      
+      # insert start
+      - name: Merge into HTML Report
+        run: npx playwright merge-reports --reporter html ./all-blob-reports
+
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-html-report
+          path: playwright-report/
+          retention-days: 30
+      # insert end
 
       - name: Merge blob reports into JSON
         run: npx playwright merge-reports --reporter json ./all-blob-reports > test-results.json
@@ -207,36 +219,105 @@ jobs:
           job-summary: true
           comment-on-pr: true
 
-      - name: Setup Pages
-        if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        uses: actions/configure-pages@v4
+      - name: Prepare Allure report for Pages
+        if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/develop')
+        run: |
+          mkdir -p gh-pages/${{ github.run_number }}
+          cp -r allure-report/* gh-pages/${{ github.run_number }}/
 
-      - name: Upload artifact to Pages
-        if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: allure-report
+          # Create index.html that redirects to latest report
+          cat > gh-pages/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <title>Allure Reports</title>
+            <meta http-equiv="refresh" content="0; url=./${{ github.run_number }}/">
+            <style>
+              body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+              a { color: #0066cc; text-decoration: none; }
+            </style>
+          </head>
+          <body>
+            <h1>Allure Test Reports</h1>
+            <p>Redirecting to latest report: <a href="./${{ github.run_number }}/">Build #${{ github.run_number }}</a></p>
+          </body>
+          </html>
+          EOF
+
+          # Create builds index
+          cat > gh-pages/builds.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <title>All Builds - Allure Reports</title>
+            <style>
+              body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+              h1 { color: #333; }
+              ul { list-style: none; padding: 0; }
+              li { margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 5px; }
+              a { color: #0066cc; text-decoration: none; font-weight: bold; }
+              a:hover { text-decoration: underline; }
+              .latest { background: #e3f2fd; border: 2px solid #2196f3; }
+            </style>
+          </head>
+          <body>
+            <h1>📊 Allure Test Reports - All Builds</h1>
+            <p>Available reports by build number:</p>
+            <ul id="builds"></ul>
+            <script>
+              // This will be populated when reports are generated
+              const currentBuild = ${{ github.run_number }};
+              document.getElementById('builds').innerHTML =
+                '<li class="latest"><a href="./' + currentBuild + '/">Build #' + currentBuild + '</a> (Latest)</li>';
+            </script>
+          </body>
+          </html>
+          EOF
 
       - name: Deploy to GitHub Pages
-        if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        id: deployment
-        uses: actions/deploy-pages@v4
+        if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/develop')
+        id: gh-pages-deploy
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./gh-pages
+          keep_files: true
+          destination_dir: ./
 
       - name: Add Allure report link to summary
         if: always()
         run: |
-          echo "## Test Reports" >> $GITHUB_STEP_SUMMARY
+          echo "## 📊 Test Reports" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.ref }}" == "refs/heads/master" ]; then
-            echo "### Allure Report" >> $GITHUB_STEP_SUMMARY
-            echo "📊 [View Allure Report](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/)" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.ref }}" == "refs/heads/master" ] || [ "${{ github.ref }}" == "refs/heads/develop" ]; then
+            if [ "${{ steps.gh-pages-deploy.outcome }}" == "success" ]; then
+              echo "### 🌐 Allure Report (GitHub Pages)" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "📊 **[View Latest Report - Build #${{ github.run_number }}](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ github.run_number }}/)**" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "📋 [View All Builds](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/builds.html)" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "> **Note**: It may take 1-2 minutes for GitHub Pages to update. If you see a 404, wait a moment and refresh." >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "### ⚠️ Allure Report" >> $GITHUB_STEP_SUMMARY
+              echo "GitHub Pages deployment was skipped or failed. Download the artifact below instead." >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
           fi
-          echo "### Playwright Report" >> $GITHUB_STEP_SUMMARY
-          echo "🎭 Download the 'playwright-html-report' artifact to view the report locally" >> $GITHUB_STEP_SUMMARY
+
+          echo "### 📦 Downloadable Reports" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Test Results" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Check the 'Test Results' section below for detailed test results" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎭 **Playwright HTML Report**: Download the \`playwright-html-report\` artifact" >> $GITHUB_STEP_SUMMARY
+          echo "- 📊 **Allure Report**: Download the \`allure-report\` artifact" >> $GITHUB_STEP_SUMMARY
+          echo "- 📄 **Allure Single File**: Download the \`allure-report-single-file\` artifact" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### ✅ Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "Check the test results summary above for detailed pass/fail statistics" >> $GITHUB_STEP_SUMMARY
 
       - name: Comment PR with reports
         if: always() && github.event_name == 'pull_request'

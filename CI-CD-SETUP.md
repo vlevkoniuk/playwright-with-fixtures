@@ -316,6 +316,10 @@ Add to `notify` job:
 ## 🎓 Learning Resources
 
 - **Workflows**: [.github/workflows/README.md](.github/workflows/README.md)
+- **Screenshots & Videos**: [.github/SCREENSHOTS-AND-VIDEOS.md](.github/SCREENSHOTS-AND-VIDEOS.md)
+- **Test Failure Handling**: [.github/TEST-FAILURE-HANDLING.md](.github/TEST-FAILURE-HANDLING.md)
+- **Playwright Report Summary**: [.github/PLAYWRIGHT-REPORT-SUMMARY.md](.github/PLAYWRIGHT-REPORT-SUMMARY.md)
+- **Allure Reports with Build History**: [.github/ALLURE-GITHUB-PAGES-BUILDS.md](.github/ALLURE-GITHUB-PAGES-BUILDS.md)
 - **Playwright**: https://playwright.dev/docs/ci
 - **Allure**: https://docs.qameta.io/allure/
 - **GitHub Actions**: https://docs.github.com/en/actions

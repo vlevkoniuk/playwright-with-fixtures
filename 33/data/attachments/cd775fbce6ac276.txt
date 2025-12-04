@@ -1,0 +1,3 @@
+chromium
+Category "Women" initial state: collapsed
+Category "Women" toggled from false to true

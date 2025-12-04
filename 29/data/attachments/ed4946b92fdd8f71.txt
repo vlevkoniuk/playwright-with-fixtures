@@ -1,0 +1,6 @@
+chromium
+
+Navigating through subcategories of "Women":
+  1. Clicking "Dress"
+     URL: https://automationexercise.com/category_products/1
+  2. Clicking "Tops"

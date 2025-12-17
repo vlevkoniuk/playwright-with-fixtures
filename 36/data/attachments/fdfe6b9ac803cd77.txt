@@ -1,0 +1,3 @@
+chromium
+Clicking category: "Women" -> subcategory: "Dress"
+Navigated to: https://automationexercise.com/category_products/1

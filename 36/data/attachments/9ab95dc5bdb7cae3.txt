@@ -1,0 +1,57 @@
+chromium
+
+=== Categories Structure ===
+[
+  {
+    "name": "Women",
+    "subcategories": [
+      {
+        "name": "Dress"
+      },
+      {
+        "name": "Tops"
+      },
+      {
+        "name": "Saree"
+      }
+    ]
+  },
+  {
+    "name": "Men",
+    "subcategories": [
+      {
+        "name": "Tshirts"
+      },
+      {
+        "name": "Jeans"
+      }
+    ]
+  },
+  {
+    "name": "Kids",
+    "subcategories": [
+      {
+        "name": "Dress"
+      },
+      {
+        "name": "Tops & Shirts"
+      }
+    ]
+  }
+]
+
+Category: Women
+  Subcategories (3):
+    - Dress
+    - Tops
+    - Saree
+
+Category: Men
+  Subcategories (2):
+    - Tshirts
+    - Jeans
+
+Category: Kids
+  Subcategories (2):
+    - Dress
+    - Tops & Shirts
